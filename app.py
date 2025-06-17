@@ -64,8 +64,14 @@ if submitted:
         for col in encoders:
             df_input[col] = encoders[col].transform(df_input[col])
 
-        # ✅ Tambahkan baris ini untuk mengurutkan kolom sesuai saat training
-        df_input = df_input[scaler.feature_names_in_]
+        # ✅ Tambahkan ini untuk mengatur urutan kolom sesuai saat training
+        ordered_cols = [
+            "Gender", "Age", "Height", "Weight",
+            "family_history_with_overweight", "FAVC", "FCVC", "NCP",
+            "CAEC", "SMOKE", "CH2O", "SCC",
+            "FAF", "TUE", "CALC", "MTRANS"
+        ]
+        df_input = df_input[ordered_cols]
 
         # Scaling & Prediksi
         input_scaled = scaler.transform(df_input)
@@ -73,3 +79,5 @@ if submitted:
         pred_label = encoder_target.inverse_transform([pred_numeric])[0]
 
         st.success(f"✅ Prediksi Tingkat Obesitas Anda: **{pred_label}**")
+
+           
