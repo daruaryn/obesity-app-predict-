@@ -60,17 +60,16 @@ if submitted:
             "MTRANS": mtrans
         }])
 
-        # Encode fitur kategorikal
+        # Encode kolom kategorikal
         for col in encoders:
             df_input[col] = encoders[col].transform(df_input[col])
 
-        # Scaling
-        input_scaled = scaler.transform(df_input)
+        # ✅ Tambahkan baris ini untuk mengurutkan kolom sesuai saat training
+        df_input = df_input[scaler.feature_names_in_]
 
-        # Prediksi
+        # Scaling & Prediksi
+        input_scaled = scaler.transform(df_input)
         pred_numeric = model.predict(input_scaled)[0]
         pred_label = encoder_target.inverse_transform([pred_numeric])[0]
 
-        # Output
         st.success(f"✅ Prediksi Tingkat Obesitas Anda: **{pred_label}**")
-
