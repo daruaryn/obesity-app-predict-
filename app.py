@@ -34,7 +34,7 @@ with st.form("form_obesitas"):
     
     submitted = st.form_submit_button("🔍 Prediksi")
 
-# === Validasi & Prediksi ===
+# === Validasi & Prediksihgjj ===  
 if submitted:
     if height <= 0 or weight <= 0:
         st.error("❌ Tinggi dan Berat Badan tidak boleh nol atau negatif.")
