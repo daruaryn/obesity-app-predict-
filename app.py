@@ -1,83 +1,109 @@
 import streamlit as st
 import pandas as pd
-import joblib
+import numpy as np
+import pickle
+from pathlib import Path
 
-# === Load Model & Preprocessing ===
-model = joblib.load("model_ObesityDataSet.pkl")
-scaler = joblib.load("scaler.pkl")
-encoders = joblib.load("encoders.pkl")
-encoder_target = joblib.load("encoder_target.pkl")
+# === Load semua aset (model, scaler, encoder) ===
+base_path = Path('.')
 
-# === Konfigurasi Halaman ===
+def load_pickle(path):
+    with open(path, 'rb') as file:
+        return pickle.load(file)
+
+model = load_pickle(base_path / 'final_model.pkl')
+scaler = load_pickle(base_path / 'scaler.pkl')
+ordinal_maps = load_pickle(base_path / 'encoders/ordinal_mappings.pkl')
+
+# Load label encoders
+encoders = {
+    'Gender': load_pickle(base_path / 'encoders/Gender_encoder.pkl'),
+    'HighCalorieFood': load_pickle(base_path / 'encoders/HighCalorieFood_encoder.pkl'),
+    'CalorieMonitoring': load_pickle(base_path / 'encoders/CalorieMonitoring_encoder.pkl'),
+    'FamilyHistoryOverweight': load_pickle(base_path / 'encoders/FamilyHistoryOverweight_encoder.pkl'),
+    'Transportation': load_pickle(base_path / 'encoders/Transportation_encoder.pkl'),
+    'ObesityLevel': load_pickle(base_path / 'encoders/ObesityLevel_encoder.pkl'),
+}
+
+# ✅ Ganti scaler.feature_names_in_ dengan kolom hardcoded dari data training
+scaled_columns = [
+    'Age', 'Height', 'Weight',
+    'VegetableConsumption', 'MealFrequency',
+    'WaterIntake', 'PhysicalActivity', 'TechnologyUse'
+]
+
+# === Streamlit UI ===
 st.set_page_config(page_title="Prediksi Obesitas", layout="centered")
-st.title("🎯 Prediksi Obesitas Berdasarkan Gaya Hidup")
-st.markdown("Isi data di bawah ini untuk memprediksi tingkat obesitas berdasarkan gaya hidupmu:")
+st.title("💡 Prediksi Tingkat Obesitas")
 
-# === Form Input ===
-with st.form("form_obesitas"):
-    gender = st.selectbox("Jenis Kelamin", ["Male", "Female"])
-    age = st.number_input("Usia", min_value=1, max_value=100, value=25)
-    height = st.number_input("Tinggi Badan (meter)", min_value=1.0, max_value=2.5, value=1.70)
-    weight = st.number_input("Berat Badan (kg)", min_value=10.0, max_value=200.0, value=65.0)
-    family = st.selectbox("Riwayat Keluarga Overweight", ["yes", "no"])
-    favc = st.selectbox("Sering Konsumsi Makanan Kalori Tinggi?", ["yes", "no"])
-    fcvc = st.slider("Frekuensi Konsumsi Sayur (0–3)", 0.0, 3.0, 2.0)
-    ncp = st.slider("Jumlah Makan per Hari (0–3)", 0.0, 3.0, 3.0)
-    caec = st.selectbox("Ngemil di luar jam makan?", ["no", "Sometimes", "Frequently", "Always"])
-    smoke = st.selectbox("Merokok?", ["yes", "no"])
-    ch2o = st.slider("Minum Air Putih per Hari (0–3)", 0.0, 3.0, 2.0)
-    scc = st.selectbox("Konsultasi Gizi?", ["yes", "no"])
-    faf = st.slider("Aktivitas Fisik (0–3)", 0.0, 3.0, 1.0)
-    tue = st.slider("Waktu Layar (TV/Gadget) (0–3)", 0.0, 3.0, 1.0)
-    calc = st.selectbox("Konsumsi Alkohol?", ["no", "Sometimes", "Frequently", "Always"])
-    mtrans = st.selectbox("Jenis Transportasi", ["Automobile", "Motorbike", "Bike", "Public_Transportation", "Walking"])
-    
-    submitted = st.form_submit_button("🔍 Prediksi")
+with st.form("form_prediksi"):
+    st.header("📋 Masukkan Informasi Anda")
 
-# === Validasi & Prediksihgjj ===  
-if submitted:
-    if height <= 0 or weight <= 0:
-        st.error("❌ Tinggi dan Berat Badan tidak boleh nol atau negatif.")
-    elif age <= 0:
-        st.error("❌ Usia tidak boleh nol atau negatif.")
-    else:
-        df_input = pd.DataFrame([{
-            "Gender": gender,
-            "Age": age,
-            "Height": height,
-            "Weight": weight,
-            "family_history_with_overweight": family,
-            "FAVC": favc,
-            "FCVC": fcvc,
-            "NCP": ncp,
-            "CAEC": caec,
-            "SMOKE": smoke,
-            "CH2O": ch2o,
-            "SCC": scc,
-            "FAF": faf,
-            "TUE": tue,
-            "CALC": calc,
-            "MTRANS": mtrans
-        }])
+    umur = st.number_input("Usia", 1, 100, step=1)
+    jenis_kelamin = st.selectbox("Jenis Kelamin", encoders['Gender'].classes_)
+    tinggi_cm = st.number_input("Tinggi Badan (cm)", 100.0, 250.0, step=1.0)
+    tinggi_m = tinggi_cm / 100
+    berat = st.number_input("Berat Badan (kg)", 20.0, 200.0, step=1.0)
 
-        # Encode kolom kategorikal
-        for col in encoders:
-            df_input[col] = encoders[col].transform(df_input[col])
+    konsumsi_alkohol = st.selectbox("Konsumsi Alkohol", list(ordinal_maps['AlcoholConsumption'].keys()))
+    makanan_tinggi_kalori = st.selectbox("Sering Makan Tinggi Kalori?", encoders['HighCalorieFood'].classes_)
+    konsumsi_sayur = st.selectbox("Frekuensi Makan Sayur", [1, 2, 3])
+    frekuensi_makan = st.selectbox("Frekuensi Makan per Hari", [1, 2, 3, 4])
+    pemantauan_kalori = st.selectbox("Pantau Kalori Harian?", encoders['CalorieMonitoring'].classes_)
+    air_putih = st.selectbox("Minum Air Putih (gelas per hari)", list(range(1, 9)))
+    riwayat_keluarga = st.selectbox("Ada Riwayat Kegemukan di Keluarga?", encoders['FamilyHistoryOverweight'].classes_)
+    olahraga = st.selectbox("Frekuensi Olahraga per Minggu", list(range(0, 5)))
+    waktu_gadget = st.selectbox("Durasi Gunakan Teknologi (jam/hari)", list(range(0, 5)))
+    konsumsi_snack = st.selectbox("Kebiasaan Ngemil", list(ordinal_maps['SnackConsumption'].keys()))
+    transportasi = st.selectbox("Jenis Transportasi", encoders['Transportation'].classes_)
 
-        # ✅ Tambahkan ini untuk mengatur urutan kolom sesuai saat training
-        ordered_cols = [
-            "Gender", "Age", "Height", "Weight",
-            "family_history_with_overweight", "FAVC", "FCVC", "NCP",
-            "CAEC", "SMOKE", "CH2O", "SCC",
-            "FAF", "TUE", "CALC", "MTRANS"
-        ]
-        df_input = df_input[ordered_cols]
+    prediksi_button = st.form_submit_button("🔍 Prediksi")
 
-        # Scaling & Prediksi
-        input_scaled = scaler.transform(df_input)
-        pred_numeric = model.predict(input_scaled)[0]
-        pred_label = encoder_target.inverse_transform([pred_numeric])[0]
+# === Proses Prediksi ===
+if prediksi_button:
+    # Bentuk DataFrame input
+    input_df = pd.DataFrame([{
+        'Age': umur,
+        'Gender': jenis_kelamin,
+        'Height': tinggi_m,
+        'Weight': berat,
+        'AlcoholConsumption': konsumsi_alkohol,
+        'HighCalorieFood': makanan_tinggi_kalori,
+        'VegetableConsumption': konsumsi_sayur,
+        'MealFrequency': frekuensi_makan,
+        'CalorieMonitoring': pemantauan_kalori,
+        'WaterIntake': air_putih,
+        'FamilyHistoryOverweight': riwayat_keluarga,
+        'PhysicalActivity': olahraga,
+        'TechnologyUse': waktu_gadget,
+        'SnackConsumption': konsumsi_snack,
+        'Transportation': transportasi
+    }])
 
-        st.success(f"✅ Prediksi Tingkat Obesitas Anda: **{pred_label}**")
+    # Mapping ordinal
+    for col in ['AlcoholConsumption', 'SnackConsumption']:
+        input_df[col] = input_df[col].map(ordinal_maps[col])
 
-           
+    # Label Encoding
+    for col in ['Gender', 'HighCalorieFood', 'CalorieMonitoring', 'FamilyHistoryOverweight', 'Transportation']:
+        input_df[col] = encoders[col].transform(input_df[col])
+
+    # Validasi kolom input vs scaler
+    missing_cols = [col for col in scaled_columns if col not in input_df.columns]
+    if missing_cols:
+        st.error(f"Kolom berikut tidak ditemukan di input: {missing_cols}")
+        st.stop()
+
+    # Transformasi fitur numerik
+    scaled_data = scaler.transform(input_df[scaled_columns])
+
+    # Gabung dengan ordinal features
+    fitur_akhir = np.hstack([
+        scaled_data,
+        input_df[['AlcoholConsumption', 'SnackConsumption']].values
+    ])
+
+    # Prediksi dan tampilkan hasil
+    hasil_prediksi = model.predict(fitur_akhir)[0]
+    label_hasil = encoders['ObesityLevel'].inverse_transform([hasil_prediksi])[0]
+    st.success(f"Hasil Prediksi Tingkat Obesitas: **{label_hasil}** 🎯")
